@@ -187,6 +187,47 @@
         padding: 1rem;
       }
     }
+    /* Phones */
+    @media (max-width: 600px) {
+      body {
+        margin: 0;
+        padding: 0.75rem 0.75rem 1.5rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      input[type="number"] {
+        font-size: 16px; /* below 16px iOS Safari zooms in on focus */
+      }
+      .panels > * {
+        min-width: 0;
+        max-width: 100%;
+      }
+      /* Results table scrolls sideways; row names stay pinned on the left */
+      .tbl-scroll {
+        overflow-x: auto;
+      }
+      .tbl-scroll .tbl {
+        overflow: visible;
+      }
+      .out th:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        box-shadow: 1px 0 0 #e5e7eb;
+      }
+      .tbl th, .tbl td {
+        padding: 0.25rem 0.45rem;
+      }
+      .tbl .val {
+        min-width: 0;
+        font-size: 0.9rem;
+      }
+      .out th:nth-child(2), .out td:nth-child(2) {
+        width: 6rem;
+        min-width: 6rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -197,31 +238,32 @@
     <tr><th colspan="2">Inputs</th></tr>
     <tr>
       <td><label for="loan">Loan Amount ($)</label></td>
-      <td><input type="number" id="loan" min="0" max="2000000" step="1000" value="100000"></td>
+      <td><input type="number" inputmode="decimal" id="loan" min="0" max="2000000" step="1000" value="100000"></td>
     </tr>
     <tr>
       <td><label for="apr">APR (%)</label></td>
-      <td><input type="number" id="apr" min="0" max="20" step="0.001" value="7.0"></td>
+      <td><input type="number" inputmode="decimal" id="apr" min="0" max="20" step="0.001" value="7.0"></td>
     </tr>
     <tr>
       <td><label for="term">Term (Years)</label></td>
-      <td><input type="number" id="term" min="1" max="40" step="1" value="30"></td>
+      <td><input type="number" inputmode="decimal" id="term" min="1" max="40" step="1" value="30"></td>
     </tr>
     <tr>
       <td><label for="paymentNum">Current Payment #</label></td>
-      <td><input type="number" id="paymentNum" min="0" value="0" step="1"></td>
+      <td><input type="number" inputmode="decimal" id="paymentNum" min="0" value="0" step="1"></td>
     </tr>
     <tr>
       <td><label for="extraMo" title="Added to principal with every payment, starting at the current payment #">Extra Principal ($/mo)</label></td>
-      <td><input type="number" id="extraMo" min="0" step="50" value="0"></td>
+      <td><input type="number" inputmode="decimal" id="extraMo" min="0" step="50" value="0"></td>
     </tr>
     <tr>
       <td><label for="other" title="Escrow (property tax, insurance), PMI, HOA…">Other Costs ($/mo)</label></td>
-      <td><input type="number" id="other" min="0" step="50" value="0"></td>
+      <td><input type="number" inputmode="decimal" id="other" min="0" step="50" value="0"></td>
     </tr>
   </table>
 
   <div>
+  <div class="tbl-scroll">
   <table class="tbl out" id="outTbl">
     <tr><th></th><th id="pmtHdr">Month</th><th>To Date</th><th>Remaining</th><th>Total</th><th class="rc">With Extras</th></tr>
     <tr><th>Principal (P)</th><td class="val" id="pmtP"></td><td class="val" id="princPaid">$0.00</td><td class="val" id="remBal">$0.00</td><td class="val" id="totalPrinc">$0.00</td><td class="val rc" id="rcPrinc"></td></tr>
@@ -230,6 +272,7 @@
     <tr class="oth"><th>Other</th><td class="val" id="pmtO"></td><td class="val" id="paidO"></td><td class="val" id="remO"></td><td class="val" id="totalO"></td><td class="val rc" id="rcO"></td></tr>
     <tr class="oth"><th>Total</th><td class="val" id="pmtT"></td><td class="val" id="paidT"></td><td class="val" id="remT"></td><td class="val" id="totalT"></td><td class="val rc" id="rcT"></td></tr>
   </table>
+  </div>
   <div class="recast-note rc" id="recastNote"></div>
   </div>
   </div>
@@ -295,7 +338,7 @@
     let hoverLabelsG = null;
     let chartCurX = 0, chartEndX = 0; // x of the current-payment line and of the last payment, for hover range markers
     let otherCost = 0;      // $/mo on top of P&I while the loan is being paid
-    const CHART_H = 500;    // chart height (viewBox units = px)
+    let chartH = 500;       // chart height (viewBox units = px); smaller on phones
     let chartW = 800;       // chart viewBox width; sized so the x-axis arrow ends under the Total column
     let chartYMonthly = 0;  // y of the original P&I line, for placing hover labels
 
@@ -319,8 +362,8 @@
       events.forEach((ev, k) => {
         const tr = document.createElement('tr');
         tr.innerHTML =
-          `<td><input type="number" class="ev-after" min="0" step="1" value="${ev.after}"></td>` +
-          `<td><input type="number" class="ev-amount" min="0" step="1000" value="${ev.amount}"></td>` +
+          `<td><input type="number" inputmode="numeric" class="ev-after" min="0" step="1" value="${ev.after}"></td>` +
+          `<td><input type="number" inputmode="decimal" class="ev-amount" min="0" step="1000" value="${ev.amount}"></td>` +
           `<td><input type="checkbox" class="ev-recast"${ev.recast ? ' checked' : ''}></td>` +
           `<td><button type="button" class="ev-del" title="Remove">✕</button></td>`;
         tr.querySelector('.ev-after').oninput = (e) => { ev.after = Math.max(0, parseInt(e.target.value) || 0); update(); };
@@ -393,12 +436,20 @@
       // 1 viewBox unit = 1px; arrow tip (width - margin + 22) lands at the Total column's right edge
       const totalRight = document.getElementById('totalPrinc').getBoundingClientRect().right;
       const chartLeft = chartEl.getBoundingClientRect().left;
-      // When the tables wrap (narrow window) the Total column sits far left; fall back to the container width
       const avail = chartEl.getBoundingClientRect().width;
-      chartW = Math.round(Math.max(totalRight - chartLeft + 18, Math.min(800, avail)));
-      chartEl.setAttribute('viewBox', `0 0 ${chartW} ${CHART_H}`);
+      if (avail < 600) {
+        // Phone: draw at the real width (full-size text), height scaled to fit
+        chartW = Math.round(avail);
+        chartH = Math.round(Math.min(500, Math.max(320, avail * 0.95)));
+      } else {
+        // When the tables wrap (narrow window) the Total column sits far left; fall back to the container width
+        chartW = Math.round(Math.max(totalRight - chartLeft + 18, Math.min(800, avail)));
+        chartH = 500;
+      }
+      chartEl.style.height = `${chartH}px`;
+      chartEl.setAttribute('viewBox', `0 0 ${chartW} ${chartH}`);
       const width = chartW;
-      const height = CHART_H;
+      const height = chartH;
       const margin = 40;
       const plotWidth = width - 2 * margin;
       const plotHeight = height - 2 * margin;
@@ -418,14 +469,16 @@
         chartEl.innerHTML += `<line x1="${margin}" y1="${y}" x2="${width - margin}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
         chartEl.innerHTML += `<text x="${margin - 4}" y="${y + 4}" font-size="11" fill="#6b7280" text-anchor="end">${numFormatter.format(tickVal)}</text>`;
       }
-      // X 1yr
+      // X: a grid line every year; labels every 1, 2 or 5 years so they don't crowd on narrow charts
       const totalYr = Math.round(maxMonth / 12);
+      const yrPx = plotWidth / Math.max(1, totalYr);
+      const yrStep = yrPx < 16 ? 5 : yrPx < 26 ? 2 : 1;
       for (let yr = 0; yr <= totalYr; yr++) {
         const month = yr * 12;
         const frac = Math.min(1, month / maxMonth);
         const x = margin + frac * plotWidth;
         chartEl.innerHTML += `<line x1="${x}" y1="${margin}" x2="${x}" y2="${height - margin}" stroke="#e5e7eb" stroke-width="1"/>`;
-        chartEl.innerHTML += `<text x="${x}" y="${height - 20}" font-size="12" fill="#6b7280" text-anchor="middle">${yr}</text>`;
+        if (yr % yrStep === 0) chartEl.innerHTML += `<text x="${x}" y="${height - 20}" font-size="12" fill="#6b7280" text-anchor="middle">${yr}</text>`;
       }
       chartEl.innerHTML += `<text x="${width / 2}" y="${height + 6}" font-size="14" font-weight="bold" fill="#374151" text-anchor="middle">Years</text>`;
       const yLabelY = margin + plotHeight / 2;
@@ -633,7 +686,7 @@
       hoverLine.setAttribute("x1", svgX);
       hoverLine.setAttribute("x2", svgX);
       hoverLine.setAttribute("y1", "0");
-      hoverLine.setAttribute("y2", CHART_H);
+      hoverLine.setAttribute("y2", chartH);
       let intrCurrToHoverStr = '$0.00';
       let intrHoverToEndStr = '$0.00';
       let princCurrToHoverStr = '$0.00';
@@ -659,7 +712,7 @@
       if (!hoverLabelsG) {
         hoverLabelsG = document.createElementNS(ns0, "g");
         hoverLabelsG.setAttribute("pointer-events", "none");
-        hoverLabelsG.setAttribute("font-size", "16");
+        hoverLabelsG.setAttribute("font-size", chartW < 600 ? "13" : "16");
         hoverLabelsG.setAttribute("font-family", "system-ui");
         for (let k = 0; k < 4; k++) {
           const t = document.createElementNS(ns0, "text");
@@ -669,7 +722,8 @@
         chartEl.appendChild(hoverLabelsG);
       }
       const yIntr = chartYMonthly + 26; // just below the monthly payment line
-      const yPrinc = CHART_H - 40 - 12; // just above the x-axis
+      const yPrinc = chartH - 40 - 12; // just above the x-axis
+      const fs = chartW < 600 ? 13 : 16;
       const sumLabels = [
         [intrCurrToHoverStr, svgX - 16, yIntr, "end", "#b91c1c"],
         [princCurrToHoverStr, svgX - 16, yPrinc, "end", "#047857"],
@@ -678,6 +732,10 @@
       ];
       sumLabels.forEach(([txt, x, y, anchor, color], k) => {
         const t = hoverLabelsG.children[k];
+        // Near a chart edge a label may not fit on its side: move it across the line, one row up
+        const w = txt.length * fs * 0.56; // rough text width
+        if (anchor === "end" && x - w < -8) { x = svgX + 16; anchor = "start"; y -= fs + 4; }
+        else if (anchor === "start" && x + w > chartW + 8) { x = svgX - 16; anchor = "end"; y -= fs + 4; }
         t.setAttribute("x", x);
         t.setAttribute("y", y);
         t.setAttribute("text-anchor", anchor);
