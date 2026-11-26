@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<!-- Mortgage Calculator. Copyright (C) 2026 Oleg Dzhimiev
+     SPDX-License-Identifier: AGPL-3.0-or-later (see LICENSE) -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><clipPath id='c'><rect width='32' height='32' rx='6'/></clipPath><g clip-path='url(%23c)'><rect width='32' height='32' fill='%23f87171'/><path d='M0 26Q20 23 32 4V32H0Z' fill='%2310b981'/></g></svg>">
+  <title>Mortgage Calculator v2026.11.26</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #fafafa;
+      color: #111;
+      line-height: 1.6;
+      padding: 1rem 1rem 2rem;
+      max-width: 1200px;
+      margin: 0 20px;
+    }
+    h1 {
+      margin-bottom: 0;
+      padding-bottom: 0.5rem;
+    }
+    h1 .ver {
+      font-size: 0.9rem;
+      font-weight: normal;
+      color: #9ca3af;
+    }
+    .panels {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .tbl {
+      border-collapse: separate;
+      border-spacing: 0;
+      background: white;
+      border-radius: 2px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .tbl th {
+      font-size: 1rem;
+      font-weight: normal;
+      text-align: left;
+      color: #111827;
+      background: #e5e7eb;
+      white-space: nowrap;
+      padding: 0.3rem 0.6rem;
+    }
+    .tbl td {
+      padding: 0.3rem 0.6rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .tbl tr:last-child td {
+      border-bottom: none;
+    }
+    label {
+      font-size: 1rem;
+      font-weight: normal;
+      color: #111827;
+      white-space: nowrap;
+    }
+    /* Row headers (Principal, Interest, P+I): white, with the same row lines as the cells */
+    .out tr:not(:first-child) th {
+      background: white;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .out tr:last-child th {
+      border-bottom: none;
+    }
+    .out #pmtHdr {
+      text-align: left;
+    }
+    /* Month N column: fixed width so hovering doesn't resize it */
+    .out th:nth-child(2), .out td:nth-child(2) {
+      width: 7rem;
+      min-width: 7rem;
+    }
+    /* Extra Payments table */
+    .events tr.sub th {
+      background: white;
+      font-size: 0.85rem;
+      color: #6b7280;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .events td {
+      text-align: center;
+    }
+    .events input.ev-after {
+      width: 4.5rem;
+    }
+    .events input.ev-amount {
+      width: 7rem;
+    }
+    .events button {
+      font: inherit;
+      font-size: 0.85rem;
+      color: #374151;
+      background: white;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 0.1rem 0.5rem;
+      cursor: pointer;
+    }
+    .events thead button {
+      float: right;
+      margin-left: 1rem;
+    }
+    .events button.ev-del {
+      border: none;
+      color: #9ca3af;
+    }
+    .events button:hover {
+      border-color: #3b82f6;
+      color: #111827;
+    }
+    /* Other / Total rows only show when other costs are entered */
+    .panels:not(.has-other) .oth {
+      display: none;
+    }
+    /* "With Extras" column and note only show when extra payments change something */
+    .panels:not(.has-recast) .rc {
+      display: none;
+    }
+    .recast-note {
+      margin: 0.4rem 0 0 0.2rem;
+      color: #374151;
+    }
+    .out tr:first-child th {
+      text-align: right;
+    }
+    .out td {
+      border-left: 1px solid #f0f0f0;
+    }
+    .tbl .val {
+      font-size: 0.95rem;
+      font-weight: normal;
+      color: #1f2937;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      min-width: 7rem;
+    }
+    input[type="number"] {
+      font-size: 0.95rem;
+      padding: 0.3rem 0.5rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: white;
+      width: 9rem;
+    }
+    input[type="number"]:focus {
+      border-color: #3b82f6;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+    }
+    #chart-container {
+      margin-bottom: 1rem;
+    }
+    #chart {
+      width: 100%;
+      height: 500px;
+      overflow: visible;
+      cursor: pointer;
+    }
+    #error {
+      color: #dc2626;
+      text-align: center;
+      grid-column: 1 / -1;
+      padding: 1rem;
+      background: #fef2f2;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Mortgage Calculator <span class="ver">v2026.11.26</span></h1>
+
+  <div class="panels">
+  <table class="tbl">
+    <tr><th colspan="2">Inputs</th></tr>
+    <tr>
+      <td><label for="loan">Loan Amount ($)</label></td>
+      <td><input type="number" id="loan" min="0" max="2000000" step="1000" value="100000"></td>
+    </tr>
+    <tr>
+      <td><label for="apr">APR (%)</label></td>
+      <td><input type="number" id="apr" min="0" max="20" step="0.001" value="7.0"></td>
+    </tr>
+    <tr>
+      <td><label for="term">Term (Years)</label></td>
+      <td><input type="number" id="term" min="1" max="40" step="1" value="30"></td>
+    </tr>
+    <tr>
+      <td><label for="paymentNum">Current Payment #</label></td>
+      <td><input type="number" id="paymentNum" min="0" value="0" step="1"></td>
+    </tr>
+    <tr>
+      <td><label for="extraMo" title="Added to principal with every payment, starting at the current payment #">Extra Principal ($/mo)</label></td>
+      <td><input type="number" id="extraMo" min="0" step="50" value="0"></td>
+    </tr>
+    <tr>
+      <td><label for="other" title="Escrow (property tax, insurance), PMI, HOA…">Other Costs ($/mo)</label></td>
+      <td><input type="number" id="other" min="0" step="50" value="0"></td>
+    </tr>
+  </table>
+
+  <div>
+  <table class="tbl out" id="outTbl">
+    <tr><th></th><th id="pmtHdr">Month</th><th>To Date</th><th>Remaining</th><th>Total</th><th class="rc">With Extras</th></tr>
+    <tr><th>Principal (P)</th><td class="val" id="pmtP"></td><td class="val" id="princPaid">$0.00</td><td class="val" id="remBal">$0.00</td><td class="val" id="totalPrinc">$0.00</td><td class="val rc" id="rcPrinc"></td></tr>
+    <tr><th>Interest (I)</th><td class="val" id="pmtI"></td><td class="val" id="intrPaid">$0.00</td><td class="val" id="remIntr">$0.00</td><td class="val" id="totalInterest">$0.00</td><td class="val rc" id="rcIntr"></td></tr>
+    <tr><th>P+I</th><td class="val" id="pmtPI"></td><td class="val" id="paidTotal">$0.00</td><td class="val" id="remTotal">$0.00</td><td class="val" id="totalPay">$0.00</td><td class="val rc" id="rcTotal"></td></tr>
+    <tr class="oth"><th>Other</th><td class="val" id="pmtO"></td><td class="val" id="paidO"></td><td class="val" id="remO"></td><td class="val" id="totalO"></td><td class="val rc" id="rcO"></td></tr>
+    <tr class="oth"><th>Total</th><td class="val" id="pmtT"></td><td class="val" id="paidT"></td><td class="val" id="remT"></td><td class="val" id="totalT"></td><td class="val rc" id="rcT"></td></tr>
+  </table>
+  <div class="recast-note rc" id="recastNote"></div>
+  </div>
+  </div>
+
+  <div id="error"></div>
+
+  <div id="chart-container">
+    <h3 style="color: #374151;">Amortization Chart</h3>
+    <svg id="chart" viewBox="0 0 800 500" preserveAspectRatio="xMinYMid meet"></svg>
+  </div>
+
+  <table class="tbl events">
+    <thead>
+      <tr><th colspan="4">Extra Principal Payments <button type="button" id="addEvent">+ Add</button></th></tr>
+      <tr class="sub"><th>After #</th><th>Amount ($)</th><th title="Re-amortize: lower the monthly payment, keep the payoff date">Recast</th><th></th></tr>
+    </thead>
+    <tbody id="eventRows"></tbody>
+  </table>
+
+  <script type="module">
+    const loanEl = document.getElementById('loan');
+    const aprEl = document.getElementById('apr');
+    const termEl = document.getElementById('term');
+    const errorEl = document.getElementById('error');
+    const totalPayEl = document.getElementById('totalPay');
+    const totalPrincEl = document.getElementById('totalPrinc');
+    const totalInterestEl = document.getElementById('totalInterest');
+    const paymentNumEl = document.getElementById('paymentNum');
+    const princPaidEl = document.getElementById('princPaid');
+    const intrPaidEl = document.getElementById('intrPaid');
+    const remBalEl = document.getElementById('remBal');
+    const paidTotalEl = document.getElementById('paidTotal');
+    const remIntrEl = document.getElementById('remIntr');
+    const remTotalEl = document.getElementById('remTotal');
+    const chartEl = document.getElementById('chart');
+    const otherEl = document.getElementById('other');
+    const extraMoEl = document.getElementById('extraMo');
+    const othEls = Object.fromEntries(['pmtO', 'paidO', 'remO', 'totalO', 'rcO', 'pmtT', 'paidT', 'remT', 'totalT', 'rcT']
+      .map((id) => [id, document.getElementById(id)]));
+    const eventRowsEl = document.getElementById('eventRows');
+    const addEventEl = document.getElementById('addEvent');
+    const panelsEl = document.querySelector('.panels');
+    const rcPrincEl = document.getElementById('rcPrinc');
+    const rcIntrEl = document.getElementById('rcIntr');
+    const rcTotalEl = document.getElementById('rcTotal');
+    const recastNoteEl = document.getElementById('recastNote');
+    const pmtHdrEl = document.getElementById('pmtHdr');
+    const pmtEls = ['pmtP', 'pmtI', 'pmtPI'].map((id) => document.getElementById(id));
+
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    });
+    const numFormatter = new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 0,
+      useGrouping: false
+    });
+
+    let currentResult = null;
+    let hoverLine = null;
+    let hoverLabelsG = null;
+    let chartCurX = 0, chartEndX = 0; // x of the current-payment line and of the last payment, for hover range markers
+    let otherCost = 0;      // $/mo on top of P&I while the loan is being paid
+    const CHART_H = 500;    // chart height (viewBox units = px)
+    let chartW = 800;       // chart viewBox width; sized so the x-axis arrow ends under the Total column
+    let chartYMonthly = 0;  // y of the original P&I line, for placing hover labels
+
+    function getInputs() {
+      return {
+        loanAmount: parseFloat(loanEl.value) || 0,
+        apr: parseFloat(aprEl.value) || 0,
+        termYears: parseFloat(termEl.value) || 1,
+        events: events,
+        other: Math.max(0, parseFloat(otherEl.value) || 0),
+        extraMo: Math.max(0, parseFloat(extraMoEl.value) || 0),
+        extraFrom: Math.max(1, parseInt(paymentNumEl.value) || 0)
+      };
+    }
+
+    // Extra payments: { after: payment #, amount: $, recast: bool }
+    let events = [];
+
+    function renderEventRows() {
+      eventRowsEl.innerHTML = '';
+      events.forEach((ev, k) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+          `<td><input type="number" class="ev-after" min="0" step="1" value="${ev.after}"></td>` +
+          `<td><input type="number" class="ev-amount" min="0" step="1000" value="${ev.amount}"></td>` +
+          `<td><input type="checkbox" class="ev-recast"${ev.recast ? ' checked' : ''}></td>` +
+          `<td><button type="button" class="ev-del" title="Remove">✕</button></td>`;
+        tr.querySelector('.ev-after').oninput = (e) => { ev.after = Math.max(0, parseInt(e.target.value) || 0); update(); };
+        tr.querySelector('.ev-amount').oninput = (e) => { ev.amount = Math.max(0, parseFloat(e.target.value) || 0); update(); };
+        tr.querySelector('.ev-recast').onchange = (e) => { ev.recast = e.target.checked; update(); };
+        tr.querySelector('.ev-del').onclick = () => { events.splice(k, 1); renderEventRows(); update(); };
+        eventRowsEl.appendChild(tr);
+      });
+    }
+
+    // Level payment that pays off `principal` in `n` months at monthly rate `r`
+    function amortize(principal, r, n) {
+      if (n <= 0 || principal <= 0) return 0;
+      if (r === 0) return principal / n;
+      const f = Math.pow(1 + r, n);
+      return principal * r * f / (f - 1);
+    }
+
+    // Extra payments come off the balance right after their payment #. A plain extra keeps
+    // the payment (loan ends early); a recast re-amortizes the balance over the months left
+    // at the same rate (payment drops, payoff date stays).
+    function calculateMortgage(inputs) {
+      const { loanAmount, apr, termYears } = inputs;
+      const extraMo = inputs.extraMo || 0; // recurring extra principal, paid with every regular payment...
+      const extraFrom = inputs.extraFrom || 1; // ...starting at this payment #
+      if (loanAmount <= 0 || apr < 0 || termYears < 1) return null;
+      const monthlyRate = apr / 100 / 12;
+      const numPayments = Math.floor(termYears * 12);
+      if (numPayments === 0) return null;
+      const monthlyPayment = amortize(loanAmount, monthlyRate, numPayments);
+      const evs = (inputs.events || []).filter((e) => e.after < numPayments && (e.amount > 0 || e.recast));
+      let balance = loanAmount;
+      let payment = monthlyPayment;
+      const applyEvents = (monthsDone) => {
+        let extra = 0;
+        for (const e of evs.filter((e) => e.after === monthsDone)) {
+          const amt = Math.min(e.amount, balance);
+          balance -= amt;
+          extra += amt;
+        }
+        if (evs.some((e) => e.after === monthsDone && e.recast)) {
+          payment = amortize(balance, monthlyRate, numPayments - monthsDone);
+        }
+        return extra;
+      };
+      const startExtra = applyEvents(0);
+      const startBalance = balance;
+      const schedule = [];
+      let payoffMonth = numPayments;
+      for (let month = 1; month <= numPayments; month++) {
+        const interest = balance * monthlyRate;
+        const principal = Math.max(0, Math.min(balance, payment + (month >= extraFrom ? extraMo : 0) - interest));
+        balance = Math.max(0, balance - principal);
+        const extra = applyEvents(month);
+        if (balance <= 1e-6 && payoffMonth === numPayments && month < numPayments) payoffMonth = month;
+        schedule.push({ month, payment: principal + interest, principal, interest, extra, balance });
+      }
+      const totalInterest = schedule.reduce((sum, m) => sum + m.interest, 0);
+      const totalPayments = loanAmount + totalInterest;
+      return { monthlyPayment, hasExtras: evs.length > 0 || extraMo > 0, startExtra, startBalance, payoffMonth, totalPayments, totalInterest, schedule };
+    }
+
+    function renderResults({ totalPayments, totalInterest }) {
+      totalPrincEl.textContent = formatter.format(totalPayments - totalInterest);
+      totalPayEl.textContent = formatter.format(totalPayments);
+      totalInterestEl.textContent = formatter.format(totalInterest);
+    }
+
+    function renderChart({ monthlyPayment, totalPayments, totalInterest, schedule }) {
+      // 1 viewBox unit = 1px; arrow tip (width - margin + 22) lands at the Total column's right edge
+      const totalRight = document.getElementById('totalPrinc').getBoundingClientRect().right;
+      const chartLeft = chartEl.getBoundingClientRect().left;
+      // When the tables wrap (narrow window) the Total column sits far left; fall back to the container width
+      const avail = chartEl.getBoundingClientRect().width;
+      chartW = Math.round(Math.max(totalRight - chartLeft + 18, Math.min(800, avail)));
+      chartEl.setAttribute('viewBox', `0 0 ${chartW} ${CHART_H}`);
+      const width = chartW;
+      const height = CHART_H;
+      const margin = 40;
+      const plotWidth = width - 2 * margin;
+      const plotHeight = height - 2 * margin;
+      const maxMonth = schedule.length;
+      // Top payment level (P&I plus any recurring extra principal)
+      const paymentScale = Math.max(monthlyPayment, ...schedule.map((m) => m.payment));
+      const plotScale = (paymentScale + otherCost) * 1.05;
+      chartEl.innerHTML = '';
+      // Y ticks: smallest "nice" step giving at most 8 ticks (e.g. 100 for ~$700, 500 for ~$3,500)
+      const yStep = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000]
+        .find((st) => plotScale / st <= 8) || 10000;
+      for (let tickVal = 0; tickVal <= plotScale; tickVal += yStep) {
+        const frac = tickVal / plotScale;
+        const y = margin + (1 - frac) * plotHeight;
+        if (y < margin) break;
+        chartEl.innerHTML += `<line x1="${margin}" y1="${y}" x2="${width - margin}" y2="${y}" stroke="#e5e7eb" stroke-width="1"/>`;
+        chartEl.innerHTML += `<text x="${margin - 4}" y="${y + 4}" font-size="11" fill="#6b7280" text-anchor="end">${numFormatter.format(tickVal)}</text>`;
+      }
+      // X 1yr
+      const totalYr = Math.round(maxMonth / 12);
+      for (let yr = 0; yr <= totalYr; yr++) {
+        const month = yr * 12;
+        const frac = Math.min(1, month / maxMonth);
+        const x = margin + frac * plotWidth;
+        chartEl.innerHTML += `<line x1="${x}" y1="${margin}" x2="${x}" y2="${height - margin}" stroke="#e5e7eb" stroke-width="1"/>`;
+        chartEl.innerHTML += `<text x="${x}" y="${height - 20}" font-size="12" fill="#6b7280" text-anchor="middle">${yr}</text>`;
+      }
+      chartEl.innerHTML += `<text x="${width / 2}" y="${height + 6}" font-size="14" font-weight="bold" fill="#374151" text-anchor="middle">Years</text>`;
+      const yLabelY = margin + plotHeight / 2;
+      chartEl.innerHTML += `<text x="-2" y="${yLabelY}" font-size="14" font-weight="bold" fill="#374151" text-anchor="middle" dominant-baseline="middle">$</text>`;
+      // Axes 1px
+      // Y axis extends above the plot and ends in an arrow
+      const yAxisEnd = margin - 12;
+      chartEl.innerHTML += `<line x1="${margin}" y1="${yAxisEnd + 6}" x2="${margin}" y2="${height - margin}" stroke="#374151" stroke-width="1"/>`;
+      chartEl.innerHTML += `<polygon points="${margin},${yAxisEnd} ${margin - 4},${yAxisEnd + 9} ${margin + 4},${yAxisEnd + 9}" fill="#374151"/>`;
+      // X axis extends past the plot and ends in an arrow
+      const xAxisEnd = width - margin + 22;
+      chartEl.innerHTML += `<line x1="${margin}" y1="${height - margin}" x2="${xAxisEnd - 6}" y2="${height - margin}" stroke="#374151" stroke-width="1"/>`;
+      chartEl.innerHTML += `<polygon points="${xAxisEnd},${height - margin} ${xAxisEnd - 9},${height - margin - 4} ${xAxisEnd - 9},${height - margin + 4}" fill="#374151"/>`;
+      // Paths: sample the schedule, always including the months either side of a break
+      // (an extra payment or a payment change), where the areas get a vertical step
+      const maxIdx = schedule.length - 1;
+      const yOf = (amount) => height - margin - (amount / plotScale * plotHeight);
+      const xOf = (idx) => margin + (maxIdx > 0 ? idx / maxIdx : 0) * plotWidth;
+      const yMonthly = yOf(paymentScale);
+      chartYMonthly = yMonthly;
+      const numSamples = 201;
+      const idxSet = new Set();
+      for (let k = 0; k < numSamples; k++) idxSet.add(Math.min(maxIdx, Math.round(k * maxIdx / (numSamples - 1))));
+      const breaks = new Set(); // j: step between month index j and j + 1
+      for (let j = 0; j < maxIdx; j++) {
+        if (schedule[j].extra > 0 || Math.abs(schedule[j + 1].payment - schedule[j].payment) > 0.005) {
+          breaks.add(j); idxSet.add(j); idxSet.add(j + 1);
+        }
+      }
+      const points = [...idxSet].sort((a, b) => a - b).map((i) => ({
+        i,
+        x: xOf(i),
+        yPrinc: yOf(schedule[i].principal),
+        yPay: yOf(schedule[i].payment),
+      }));
+      // Last month with a payment (earlier than maxIdx when extras pay the loan off early)
+      let lastIdx = maxIdx;
+      while (lastIdx > 0 && schedule[lastIdx].payment <= 0.005) lastIdx--;
+      const paidOffEarly = lastIdx < maxIdx;
+      // Monthly payment dashed line: one horizontal segment per payment level; on early payoff it ignores
+      // the smaller final payment and just ends at the payoff month.
+      const levels = points.filter((p) => p.i <= lastIdx && !(paidOffEarly && p.i === lastIdx && p.i > 0));
+      // Horizontal segments only, one per payment level
+      const segs = [];
+      levels.forEach((p, k) => {
+        const amount = schedule[p.i].payment;
+        if (k === 0) segs.push({ x1: margin, y: p.yPay, amount });
+        else if (Math.abs(p.yPay - levels[k - 1].yPay) > 0.01) {
+          const xm = (p.x + levels[k - 1].x) / 2;
+          segs[segs.length - 1].x2 = xm;
+          segs.push({ x1: xm, y: p.yPay, amount });
+        }
+      });
+      segs[segs.length - 1].x2 = paidOffEarly ? xOf(lastIdx) : width - margin;
+      const payLine = segs.map((sg) => `M ${sg.x1} ${sg.y} L ${sg.x2} ${sg.y}`).join(' ');
+      chartEl.innerHTML += `<path d="${payLine}" fill="none" stroke="#000" stroke-width="1" stroke-dasharray="3,3"/>`;
+      // Labels: original payment at the left; each new level at the right end of its segment.
+      // With other costs, a "Total Monthly" label (P&I + other) sits above the grey band.
+      const bandH = otherCost / plotScale * plotHeight;
+      segs.forEach((sg, k) => {
+        const atLeft = k === 0 && segs.length > 1;
+        const pos = atLeft ? `x="${margin + 4}"` : `x="${sg.x2 - 4}" text-anchor="end"`;
+        const lbl = k === 0 ? 'Monthly Payment' : 'New Monthly Payment';
+        const pi = `${lbl} ${formatter.format(sg.amount)}`;
+        const total = `Total Monthly ${formatter.format(sg.amount + otherCost)}`;
+        if (otherCost > 0 && bandH < 16) {
+          // Band too thin for two lines: one combined label above the band
+          chartEl.innerHTML += `<text ${pos} y="${sg.y - bandH - 5}" font-size="12" fill="#9ca3af">${pi} · ${total}</text>`;
+        } else {
+          chartEl.innerHTML += `<text ${pos} y="${sg.y - 5}" font-size="12" fill="#9ca3af">${pi}</text>`;
+          if (otherCost > 0) {
+            chartEl.innerHTML += `<text ${pos} y="${sg.y - bandH - 5}" font-size="12" fill="#9ca3af">${total}</text>`;
+          }
+        }
+      });
+      // Areas: on early payoff, skip the small final payment and end with a vertical edge
+      // at the same x as the payment line's drop
+      // Replace the slanted segment across each break with a vertical step at the midpoint
+      const withSteps = (pts) => {
+        const out = [];
+        pts.forEach((p, k) => {
+          out.push(p);
+          const nx = pts[k + 1];
+          if (nx && breaks.has(p.i) && nx.i === p.i + 1) {
+            const xm = (p.x + nx.x) / 2;
+            out.push({ x: xm, yPrinc: p.yPrinc, yPay: p.yPay }, { x: xm, yPrinc: nx.yPrinc, yPay: nx.yPay });
+          }
+        });
+        return out;
+      };
+      const areaPts = withSteps(paidOffEarly ? levels : points);
+      const xEnd = paidOffEarly ? xOf(lastIdx) : width - margin;
+      const lastPt = areaPts[areaPts.length - 1];
+      let principalPath = `M ${margin} ${height - margin}`;
+      areaPts.forEach((p) => (principalPath += ` L ${p.x} ${p.yPrinc}`));
+      principalPath += ` L ${xEnd} ${lastPt.yPrinc} L ${xEnd} ${height - margin} Z`;
+      chartEl.innerHTML += `<path d="${principalPath}" fill="#10b981" fill-opacity="0.4"/>`;
+      let interestPath = `M ${areaPts[0].x} ${areaPts[0].yPay}`;
+      areaPts.forEach((p) => (interestPath += ` L ${p.x} ${p.yPay}`));
+      interestPath += ` L ${xEnd} ${lastPt.yPay} L ${xEnd} ${lastPt.yPrinc}`;
+      for (let j = areaPts.length - 1; j >= 0; j--) {
+        interestPath += ` L ${areaPts[j].x} ${areaPts[j].yPrinc}`;
+      }
+      interestPath += ` Z`;
+      // Other costs: grey band on top of P&I while payments are being made
+      if (otherCost > 0) {
+        const yo = (p) => p.yPay - (otherCost / plotScale * plotHeight);
+        let otherPath = `M ${areaPts[0].x} ${yo(areaPts[0])}`;
+        areaPts.forEach((p) => (otherPath += ` L ${p.x} ${yo(p)}`));
+        otherPath += ` L ${xEnd} ${yo(lastPt)} L ${xEnd} ${lastPt.yPay}`;
+        for (let j = areaPts.length - 1; j >= 0; j--) otherPath += ` L ${areaPts[j].x} ${areaPts[j].yPay}`;
+        otherPath += ` Z`;
+        chartEl.innerHTML += `<path d="${otherPath}" fill="#9ca3af" fill-opacity="0.3"/>`;
+      }
+      chartEl.innerHTML += `<path d="${interestPath}" fill="#ef4444" fill-opacity="0.3"/>`;
+      // Watermarks: totals inside each area. Scan every month as a possible centre; of the spots where the text
+      // fits, take the one nearest the preferred position (interest early, principal late). Shrink if none fit.
+      const lastUse = paidOffEarly && lastIdx > 0 ? lastIdx - 1 : lastIdx; // skip a partial final payment
+      const idxOfX = (x) => (x - margin) / plotWidth * maxIdx;
+      const wm = (prefFrac, topY, botY, color, title, amount) => {
+        const prefX = xOf(prefFrac * lastUse);
+        const amt = formatter.format(amount);
+        for (const sc of [1, 0.85, 0.7, 0.55, 0.4]) {
+          const w = Math.max(title.length * 18 * 0.56, amt.length * 28 * 0.6) * sc + 8;
+          const h = 52 * sc + 8;
+          let best = null;
+          for (let i = 0; i <= lastUse; i++) {
+            const cx = xOf(i);
+            if (cx - w / 2 < margin + 2 || cx + w / 2 > xOf(lastUse) - 2) continue;
+            const a = Math.max(0, Math.floor(idxOfX(cx - w / 2)));
+            const b = Math.min(lastUse, Math.ceil(idxOfX(cx + w / 2)));
+            let top = -Infinity, bot = Infinity;
+            for (let j = a; j <= b; j++) { top = Math.max(top, topY(j)); bot = Math.min(bot, botY(j)); }
+            if (bot - top < h) continue;
+            const dist = Math.abs(cx - prefX);
+            if (!best || dist < best.dist) best = { dist, cx, cy: (top + bot) / 2 };
+          }
+          if (best) {
+            const { cx, cy } = best;
+            return `<text fill="${color}" fill-opacity="0.2" text-anchor="middle" font-weight="bold" pointer-events="none">` +
+              `<tspan x="${cx}" y="${cy - 12 * sc}" font-size="${18 * sc}">${title}</tspan>` +
+              `<tspan x="${cx}" y="${cy + 22 * sc}" font-size="${28 * sc}">${amt}</tspan></text>`;
+          }
+        }
+        return ''; // area too small for any size
+      };
+      const yPrincOf = (j) => yOf(schedule[j].principal);
+      chartEl.innerHTML += wm(0.25, (j) => yOf(schedule[j].payment), yPrincOf, "#b91c1c", "Total Interest", totalInterest);
+      chartEl.innerHTML += wm(0.75, yPrincOf, () => height - margin, "#047857", "Total Principal", totalPayments - totalInterest);
+      const paymentNumElChart = document.getElementById('paymentNum');
+      const currentPaymentChart = Math.max(1, parseInt(paymentNumElChart ? paymentNumElChart.value : '0') || 0);
+      const highlightFrac = Math.min(1, (currentPaymentChart - 1) / maxMonth);
+      const hx = margin + highlightFrac * plotWidth;
+      chartCurX = hx;
+      chartEndX = xEnd;
+      chartEl.innerHTML += `<line x1="${hx}" y1="${margin}" x2="${hx}" y2="${height - margin}" stroke="#000" stroke-width="1" stroke-linecap="round"/>`;
+    }
+
+    // Fill the "Payment #" column with one month's breakdown (null clears it)
+    function showPayment(row) {
+      pmtHdrEl.textContent = row ? `Month ${row.month}` : 'Month';
+      const vals = row ? [row.principal, row.interest, row.payment] : null; // pmtP, pmtI, pmtPI
+      pmtEls.forEach((el, k) => (el.textContent = vals ? formatter.format(vals[k]) : ''));
+      const o = row && row.payment > 0.005 ? otherCost : 0;
+      othEls.pmtO.textContent = row ? formatter.format(o) : '';
+      othEls.pmtT.textContent = row ? formatter.format(row.payment + o) : '';
+    }
+
+    function currentRow() {
+      if (!currentResult) return null;
+      const n = Math.max(1, parseInt(paymentNumEl.value) || 0);
+      return currentResult.schedule[Math.min(n, currentResult.schedule.length) - 1];
+    }
+
+    function cumInterestUpTo(schedule, idx) {
+      return schedule.slice(0, idx + 1).reduce((sum, m) => sum + m.interest, 0);
+    }
+
+    function cumPrincipalUpTo(schedule, idx) {
+      return schedule.slice(0, idx + 1).reduce((sum, m) => sum + m.principal + (m.extra || 0), 0);
+    }
+
+    function handleMouseMove(e) {
+      if (!currentResult) return;
+      const point = chartEl.createSVGPoint();
+      point.x = e.clientX;
+      point.y = e.clientY;
+      const svgCTM = chartEl.getScreenCTM().inverse();
+      const svgPoint = point.matrixTransform(svgCTM);
+      let svgX = svgPoint.x;
+      svgX = Math.max(0, Math.min(chartW, svgX));
+      const monthFrac = (svgX - 40) / (chartW - 80);
+      if (monthFrac < 0 || monthFrac > 1) return;
+      const monthIdx = Math.round(monthFrac * (currentResult.schedule.length - 1));
+      const data = currentResult.schedule[monthIdx];
+      showPayment(data);
+      if (!hoverLine) {
+        hoverLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        hoverLine.setAttribute("stroke", "#6b7280");
+        hoverLine.setAttribute("stroke-width", "1");
+        hoverLine.setAttribute("stroke-dasharray", "2,2");
+        hoverLine.setAttribute("pointer-events", "none");
+        chartEl.appendChild(hoverLine);
+      }
+      hoverLine.setAttribute("x1", svgX);
+      hoverLine.setAttribute("x2", svgX);
+      hoverLine.setAttribute("y1", "0");
+      hoverLine.setAttribute("y2", CHART_H);
+      let intrCurrToHoverStr = '$0.00';
+      let intrHoverToEndStr = '$0.00';
+      let princCurrToHoverStr = '$0.00';
+      let princHoverToEndStr = '$0.00';
+      if (currentResult) {
+        const hoverIdx = monthIdx;
+        const currPayment = Math.max(0, parseInt(document.getElementById('paymentNum')?.value) || 0);
+        const cumToHover = cumInterestUpTo(currentResult.schedule, hoverIdx);
+        const cumToCurr = cumInterestUpTo(currentResult.schedule, currPayment - 1);
+        const intrCurrToHover = Math.max(0, cumToHover - cumToCurr);
+        const princCumToHover = cumPrincipalUpTo(currentResult.schedule, hoverIdx);
+        const princCumToCurr = cumPrincipalUpTo(currentResult.schedule, currPayment - 1);
+        const princCurrToHover = Math.max(0, princCumToHover - princCumToCurr);
+        const princHoverToEnd = data.balance || 0;
+        const intrHoverToEnd = currentResult.totalInterest - cumToHover;
+        intrCurrToHoverStr = formatter.format(intrCurrToHover);
+        intrHoverToEndStr = formatter.format(intrHoverToEnd);
+        princCurrToHoverStr = formatter.format(princCurrToHover);
+        princHoverToEndStr = formatter.format(princHoverToEnd);
+      }
+      // Sums printed directly on the plot, either side of the hover line
+      const ns0 = "http://www.w3.org/2000/svg";
+      if (!hoverLabelsG) {
+        hoverLabelsG = document.createElementNS(ns0, "g");
+        hoverLabelsG.setAttribute("pointer-events", "none");
+        hoverLabelsG.setAttribute("font-size", "16");
+        hoverLabelsG.setAttribute("font-family", "system-ui");
+        for (let k = 0; k < 4; k++) {
+          const t = document.createElementNS(ns0, "text");
+          hoverLabelsG.appendChild(t);
+        }
+        hoverLabelsG.appendChild(document.createElementNS(ns0, "g")); // range markers
+        chartEl.appendChild(hoverLabelsG);
+      }
+      const yIntr = chartYMonthly + 26; // just below the monthly payment line
+      const yPrinc = CHART_H - 40 - 12; // just above the x-axis
+      const sumLabels = [
+        [intrCurrToHoverStr, svgX - 16, yIntr, "end", "#b91c1c"],
+        [princCurrToHoverStr, svgX - 16, yPrinc, "end", "#047857"],
+        [intrHoverToEndStr, svgX + 16, yIntr, "start", "#b91c1c"],
+        [princHoverToEndStr, svgX + 16, yPrinc, "start", "#047857"],
+      ];
+      sumLabels.forEach(([txt, x, y, anchor, color], k) => {
+        const t = hoverLabelsG.children[k];
+        t.setAttribute("x", x);
+        t.setAttribute("y", y);
+        t.setAttribute("text-anchor", anchor);
+        t.setAttribute("fill", color);
+        t.textContent = txt;
+      });
+      // Tiny triangles marking each summed range, dimension-line style: |◀ sum ▶|
+      // left sums run current payment → hover, right sums run hover → last payment
+      const tri = (x, yc, dir, color) => // dir -1: apex points left at x, +1: apex points right at x
+        `<polygon points="${x},${yc} ${x - dir * 12},${yc - 3} ${x - dir * 12},${yc + 3}" fill="${color}"/>`;
+      let marks = '';
+      for (const [y, color] of [[yIntr, "#b91c1c"], [yPrinc, "#047857"]]) {
+        const yc = y - 5; // vertical middle of the 16px label
+        if (svgX > chartCurX + 10) marks += tri(chartCurX, yc, -1, color) + tri(svgX, yc, 1, color);
+        if (svgX < chartEndX - 10) marks += tri(svgX, yc, -1, color) + tri(chartEndX, yc, 1, color);
+      }
+      hoverLabelsG.children[4].innerHTML = marks;
+    }
+
+    function handleMouseLeave() {
+      if (hoverLine) {
+        chartEl.removeChild(hoverLine);
+        hoverLine = null;
+      }
+      if (hoverLabelsG) {
+        chartEl.removeChild(hoverLabelsG);
+        hoverLabelsG = null;
+      }
+      showPayment(currentRow());
+    }
+
+    function update() {
+      errorEl.style.display = "none";
+      const inputs = getInputs();
+      const result = calculateMortgage(inputs);
+      if (!result) {
+        errorEl.style.display = "block";
+        errorEl.textContent = "Invalid inputs (loan > $0, APR ≥ 0%, term ≥ 1 year)";
+        totalPayEl.textContent = totalInterestEl.textContent = totalPrincEl.textContent = "$0.00";
+        princPaidEl.textContent = intrPaidEl.textContent = remBalEl.textContent = paidTotalEl.textContent = remIntrEl.textContent = remTotalEl.textContent = "$0.00";
+        chartEl.innerHTML = "";
+        currentResult = null;
+        showPayment(null);
+        paymentNumEl.value = 0;
+        panelsEl.classList.remove('has-recast', 'has-other');
+        return;
+      }
+      const numPayments = result.schedule.length;
+      paymentNumEl.max = numPayments;
+      let currentPayment = Math.max(0, parseInt(paymentNumEl.value) || 0);
+      if (currentPayment > numPayments) {
+        currentPayment = numPayments;
+        paymentNumEl.value = numPayments;
+      }
+      // Baseline (no extras) feeds the Total column; everything else uses the schedule with extras
+      const base = calculateMortgage({ ...inputs, events: [], extraMo: 0 });
+      const remBal = currentPayment > 0 ? result.schedule[currentPayment - 1].balance : result.startBalance;
+      const principalPaid = inputs.loanAmount - remBal; // includes extra payments
+      const interestPaid = cumInterestUpTo(result.schedule, currentPayment - 1);
+      princPaidEl.textContent = formatter.format(principalPaid);
+      intrPaidEl.textContent = formatter.format(interestPaid);
+      remBalEl.textContent = formatter.format(remBal);
+      paidTotalEl.textContent = formatter.format(principalPaid + interestPaid);
+      const remIntr = Math.max(0, result.totalInterest - interestPaid);
+      remIntrEl.textContent = formatter.format(remIntr);
+      remTotalEl.textContent = formatter.format(remBal + remIntr);
+      panelsEl.classList.toggle('has-recast', result.hasExtras);
+      // Other costs run for every month with a payment (they stop at payoff)
+      otherCost = inputs.other;
+      panelsEl.classList.toggle('has-other', otherCost > 0);
+      const paidMonths = result.schedule.filter((m) => m.payment > 0.005).length;
+      const oPaid = otherCost * Math.min(currentPayment, paidMonths);
+      const oRem = otherCost * paidMonths - oPaid;
+      const oTotal = otherCost * numPayments;
+      const oRc = otherCost * paidMonths;
+      othEls.paidO.textContent = formatter.format(oPaid);
+      othEls.remO.textContent = formatter.format(oRem);
+      othEls.totalO.textContent = formatter.format(oTotal);
+      othEls.rcO.textContent = formatter.format(oRc);
+      othEls.paidT.textContent = formatter.format(principalPaid + interestPaid + oPaid);
+      othEls.remT.textContent = formatter.format(remBal + remIntr + oRem);
+      othEls.totalT.textContent = formatter.format(base.totalPayments + oTotal);
+      othEls.rcT.textContent = formatter.format(result.totalPayments + oRc);
+      if (result.hasExtras) {
+        rcPrincEl.textContent = formatter.format(inputs.loanAmount);
+        rcIntrEl.textContent = formatter.format(result.totalInterest);
+        rcTotalEl.textContent = formatter.format(result.totalPayments);
+        const next = result.schedule[Math.min(currentPayment, numPayments - 1)].payment;
+        const early = numPayments - result.payoffMonth;
+        const parts = [];
+        if (Math.abs(next - inputs.extraMo - result.monthlyPayment) > 0.005) {
+          parts.push(`Next payment ${formatter.format(next - inputs.extraMo)} (was ${formatter.format(result.monthlyPayment)})`);
+        }
+        parts.push(`Interest saved ${formatter.format(base.totalInterest - result.totalInterest)}`);
+        if (early > 0) parts.push(`Paid off ${early} months early`);
+        recastNoteEl.textContent = parts.join(' · ');
+      }
+      renderResults(base);
+      renderChart(result);
+      currentResult = result;
+      showPayment(currentRow());
+      chartEl.style.cursor = "pointer";
+      chartEl.onmousemove = handleMouseMove;
+      chartEl.onmouseleave = handleMouseLeave;
+    }
+
+    window.addEventListener('resize', () => { if (currentResult) update(); });
+
+    window.printAmort = () => {
+      const inputs = getInputs();
+      const result = calculateMortgage(inputs);
+      if (!result) return console.error("Invalid inputs");
+      console.group("Amortization Schedule");
+      console.table(
+        result.schedule.map((s) => ({
+          Month: s.month,
+          "Monthly Pmt": formatter.format(s.payment),
+          Principal: formatter.format(s.principal),
+          Interest: formatter.format(s.interest),
+          Balance: formatter.format(s.balance),
+        }))
+      );
+      console.groupEnd();
+    };
+
+    // Major inputs <-> URL, e.g. ?loan=806500&apr=6.624&term=30&other_costs=450
+    const urlInputs = [['loan', loanEl], ['apr', aprEl], ['term', termEl], ['other_costs', otherEl], ['extra_monthly', extraMoEl]];
+    const params = new URLSearchParams(location.search);
+    for (const [key, el] of urlInputs) {
+      const v = params.get(key);
+      if (v !== null && v.trim() !== '' && Number.isFinite(Number(v))) el.value = v;
+    }
+    function syncUrl() {
+      const p = new URLSearchParams(location.search);
+      for (const [key, el] of urlInputs) p.set(key, el.value);
+      history.replaceState(null, '', `${location.pathname}?${p}${location.hash}`);
+    }
+    loanEl.oninput = aprEl.oninput = termEl.oninput = otherEl.oninput = extraMoEl.oninput = () => { syncUrl(); update(); };
+    paymentNumEl.oninput = update;
+    addEventEl.onclick = () => {
+      events.push({ after: Math.max(0, parseInt(paymentNumEl.value) || 0), amount: 10000, recast: false });
+      renderEventRows();
+      update();
+    };
+    update();
+  </script>
+</body>
+</html>
