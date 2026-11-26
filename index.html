@@ -166,6 +166,7 @@
       margin-bottom: 1rem;
     }
     #chart {
+      touch-action: pan-y; /* horizontal finger drags scrub the chart; vertical still scrolls the page */
       width: 100%;
       height: 500px;
       overflow: visible;
@@ -406,6 +407,7 @@
       const paymentScale = Math.max(monthlyPayment, ...schedule.map((m) => m.payment));
       const plotScale = (paymentScale + otherCost) * 1.05;
       chartEl.innerHTML = '';
+      hoverLine = hoverLabelsG = null; // wiped with the old chart; recreated on the next hover
       // Y ticks: smallest "nice" step giving at most 8 ticks (e.g. 100 for ~$700, 500 for ~$3,500)
       const yStep = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000]
         .find((st) => plotScale / st <= 8) || 10000;
@@ -697,11 +699,11 @@
 
     function handleMouseLeave() {
       if (hoverLine) {
-        chartEl.removeChild(hoverLine);
+        hoverLine.remove();
         hoverLine = null;
       }
       if (hoverLabelsG) {
-        chartEl.removeChild(hoverLabelsG);
+        hoverLabelsG.remove();
         hoverLabelsG = null;
       }
       showPayment(currentRow());
@@ -778,10 +780,16 @@
       currentResult = result;
       showPayment(currentRow());
       chartEl.style.cursor = "pointer";
-      chartEl.onmousemove = handleMouseMove;
-      chartEl.onmouseleave = handleMouseLeave;
+      // Pointer events: mouse hover, or finger/pen drag on touch screens
+      chartEl.onpointermove = handleMouseMove;
+      chartEl.onpointerdown = (e) => { if (e.pointerType !== 'mouse') handleMouseMove(e); };
+      chartEl.onpointerleave = (e) => { if (e.pointerType === 'mouse') handleMouseLeave(); };
+      chartEl.onpointercancel = handleMouseLeave; // the browser took over to scroll
     }
 
+    document.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' && !chartEl.contains(e.target)) handleMouseLeave();
+    });
     window.addEventListener('resize', () => { if (currentResult) update(); });
 
     window.printAmort = () => {
